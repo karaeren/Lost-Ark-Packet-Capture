@@ -47,8 +47,7 @@ namespace Lost_Ark_Packet_Capture
             OpCodes.PKTInitEnv,
             OpCodes.PKTSkillDamageNotify,
             OpCodes.PKTNewNpc,
-            OpCodes.PKTInitPC,
-            OpCodes.PKTAuctionSearchResult
+            OpCodes.PKTInitPC
         };
 
         public void Start()
@@ -78,6 +77,7 @@ namespace Lost_Ark_Packet_Capture
 
         public static IPAddress GetLocalIPAddress()
         {
+            // TODO: find a better way to get ethernet/wifi adapter address
             var host = Dns.GetHostEntry(Dns.GetHostName());
             //var activeDevice = NetworkInterface.GetAllNetworkInterfaces().First(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback);
             //var activeDeviceIpProp = activeDevice.GetIPProperties().UnicastAddresses.Select(a => a.Address.AddressFamily == AddressFamily.InterNetwork);
@@ -228,11 +228,7 @@ namespace Lost_Ark_Packet_Capture
 
                 foreach (var packet in newPackets)
                 {
-                    if(packet.op == OpCodes.PKTInitPC)
-                    {
-                        //Console.WriteLine(Convert.ToHexString(packet.payload));
-                    }
-                    else if (packet.op == OpCodes.PKTNewProjectile)
+                    if (packet.op == OpCodes.PKTNewProjectile)
                     {
                         UInt64 projectileId = BitConverter.ToUInt64(packet.payload, 4);
                         UInt64 playerId = BitConverter.ToUInt64(packet.payload, 12);
