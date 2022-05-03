@@ -1,21 +1,55 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using ElectronCgi.DotNet;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
-using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
-using ElectronCgi.DotNet;
+using System.Threading;
 
 namespace Lost_Ark_Packet_Capture
 {
     public class PacketCapture
     {
+        public class Entity
+        {
+            public UInt64 Id;
+            public String Name;
+            public String ClassName = "";
+        }
+
+        public static Entity GetEntityById(UInt64 Id)
+        {
+            foreach (Entity c in Characters)
+            {
+                if (c.Id == Id)
+                    return c;
+            }
+            return null;
+        }
+
+        public class Packet
+        {
+            public byte[] payload;
+            public OpCodes op;
+        }
+
+        public Dictionary<UInt64, Entity> Projectiles = new Dictionary<UInt64, Entity>();
+        public static HashSet<Entity> Characters = new HashSet<Entity>();
+        public static HashSet<Entity> Targets = new HashSet<Entity>();
+
         Socket socket;
-        Byte[] packetBuffer = new Byte[0x10000]; //Packet Buffer
+        Byte[] packetBuffer = new Byte[0x10000]; // Packet Buffer
         Connection connection;
+
+        private Queue<Packet> packetQueue = new Queue<Packet>();
+        private HashSet<OpCodes> relevantOps = new HashSet<OpCodes>()
+        {
+            OpCodes.PKTNewProjectile,
+            OpCodes.PKTNewPC,
+            OpCodes.PKTInitEnv,
+            OpCodes.PKTSkillDamageNotify,
+            OpCodes.PKTNewNpc,
+            OpCodes.PKTInitPC,
+            OpCodes.PKTAuctionSearchResult
+        };
 
         public void Start()
         {
@@ -34,6 +68,10 @@ namespace Lost_Ark_Packet_Capture
             byte[] packetBuffer1 = packetBuffer;
             socket.BeginReceive(packetBuffer1, 0, packetBuffer1.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
             connection.Send("message", "Socket is set up at " + GetLocalIPAddress().ToString() + "!");
+
+            Thread workerThread = new Thread(new ThreadStart(backgroundPacketProcessor));
+            workerThread.Start();
+            connection.Send("message", "Running background worker!");
 
             connection.Listen();
         }
@@ -60,28 +98,32 @@ namespace Lost_Ark_Packet_Capture
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                connection.Send("error", ex.Message);
             }
             socket?.BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
         }
+
         public Dictionary<UInt64, UInt64> ProjectileOwner = new Dictionary<UInt64, UInt64>();
         public Dictionary<UInt64, String> IdToName = new Dictionary<UInt64, String>();
         public Dictionary<String, String> NameToClass = new Dictionary<String, String>();
         UInt32 currentIpAddr = 0xdeadbeef;
-        bool combatFound = false;
         Byte[] fragmentedPacket = new Byte[0];
         Byte[] XorTable = Convert.FromBase64String("lhs9nuO0tqJVKLVNYzeXhClXrz44CESmP/HiNeeIfO6kLCEiwJEPkE7G9uEA0mv+AV0ET2aUgka30RFvL229aQbV9bvI+JtFcxRLHMKTlWFcs3Qtz0BCFaOAuF4uq3oK140JeyAfB6pIwR3e97o7jJIQvhmnyo6JnDFD3DDqEw7/hRc2zYflUXhU5J1QpW6B9DN9TIa8AypWEtZ++iNJ78vD/Dx16cRost8W05kYmOgmauuLOVrzxUry0INHU4rOcXfM8PlgKzpYYiSaC+DYZ/u5/VlSrqGgZDTUW92tv2wC2agncrDHBdvmDSUeMrGs7XCpeX9BGsmfZezaX48Mdg==");
+        
         void Xor(byte[] data, int seed, byte[] xorKey)
         {
             for (int i = 0; i < data.Length; i++) data[i] = (byte)(data[i] ^ xorKey[seed++ % xorKey.Length]);
         }
+
         [DllImport("oo2net_9_win64")] static extern bool OodleNetwork1UDP_Decode(byte[] state, byte[] shared, byte[] comp, int compLen, byte[] raw, int rawLen);
         [DllImport("oo2net_9_win64")] static extern bool OodleNetwork1UDP_State_Uncompact(byte[] state, byte[] compressorState);
         [DllImport("oo2net_9_win64")] static extern void OodleNetwork1_Shared_SetWindow(byte[] data, int length, byte[] data2, int length2);
         [DllImport("oo2net_9_win64")] static extern int OodleNetwork1UDP_State_Size();
         [DllImport("oo2net_9_win64")] static extern int OodleNetwork1_Shared_Size(int bits);
+     
         Byte[] oodleState;
         Byte[] oodleSharedDict;
+
         void OodleInit()
         {
             while (!File.Exists("oo2net_9_win64.dll"))
@@ -103,6 +145,7 @@ namespace Lost_Ark_Packet_Capture
             oodleSharedDict = new Byte[OodleNetwork1_Shared_Size(0x13) * 2];
             OodleNetwork1_Shared_SetWindow(oodleSharedDict, 0x13, dict, 0x800000);
         }
+
         Byte[] OodleDecompress(Byte[] decompressed)
         {
             var oodleSize = BitConverter.ToInt32(decompressed, 0);
@@ -116,10 +159,10 @@ namespace Lost_Ark_Packet_Capture
             }
             return tempPayload;
         }
+
         void ProcessPacket(List<Byte> data)
         {
             var packets = data.ToArray();
-            if (BitConverter.ToUInt16(data.ToArray(), 2) == 0xacdb) combatFound = true;
             var packetWithTimestamp = BitConverter.GetBytes(DateTime.UtcNow.ToBinary()).ToArray().Concat(data);
             while (packets.Length > 0)
             {
@@ -131,82 +174,132 @@ namespace Lost_Ark_Packet_Capture
                 if (6 > packets.Length)
                 {
                     fragmentedPacket = packets.ToArray();
-                    return;
+                    continue;
                 }
+
                 var opcode = (OpCodes)BitConverter.ToUInt16(packets, 2);
                 var packetSize = BitConverter.ToUInt16(packets.ToArray(), 0);
                 if (packetSize > packets.Length)
                 {
                     fragmentedPacket = packets.ToArray();
-                    return;
+                    continue;
                 }
+
                 if (packets[5] != 1 || 6 > packets.Length || packetSize < 7) return;
                 var payload = packets.Skip(6).Take(packetSize - 6).ToArray();
                 Xor(payload, (UInt16)opcode, XorTable);
                 if (packets[4] == 3) payload = OodleDecompress(payload).Skip(16).ToArray();
-                if (opcode == OpCodes.PKTCombatStatusNotify)
-                    combatFound = true;
-                else if (opcode == OpCodes.PKTNewProjectile)
-                    ProjectileOwner[BitConverter.ToUInt64(payload, 26)] = BitConverter.ToUInt64(payload, 26 + 8);
-                else if (opcode == OpCodes.PKTNewNpc)
+
+                if (relevantOps.Contains(opcode))
                 {
-                    var npcName = Npc.GetNpcName(BitConverter.ToUInt32(payload, 6 + 16 + 15));
-                    IdToName[BitConverter.ToUInt64(payload, 6 + 16 + 7)] = npcName;
+                    Packet p = new Packet();
+                    p.payload = payload;
+                    p.op = opcode;
+                    packetQueue.Enqueue(p);
                 }
-                else if (opcode == OpCodes.PKTNewPC)
-                {
-                    var pc = new PKTNewPC(payload);
-                    var pcClass = Npc.GetPcClass(pc.ClassId);
-                    if (!NameToClass.ContainsKey(pc.Name)) NameToClass[pc.Name] = pcClass + (NameToClass.ContainsValue(pcClass) ? (" - " + Guid.NewGuid().ToString().Substring(0, 4)) : "");
-                    IdToName[pc.PlayerId] = NameToClass[pc.Name];
-                }
-                else if (opcode == OpCodes.PKTInitEnv)
-                {
-                    var pc = new PKTInitEnv(payload);
-                    IdToName[pc.PlayerId] = "MyTempName";
-                }
-                /*if ((OpCodes)BitConverter.ToUInt16(converted.ToArray(), 2) == OpCodes.PKTRemoveObject)
-                {
-                    var projectile = new PKTRemoveObject { Bytes = converted };
-                    ProjectileOwner.Remove(projectile.ProjectileId, projectile.OwnerId);
-                }*/
-                else if (opcode == OpCodes.PKTSkillDamageNotify)
-                {
-                    var damage = new PKTSkillDamageNotify(payload);
-                    {
-                        foreach (var dmgEvent in damage.Events)
-                        {
-                            var skillName = Skill.GetSkillName(damage.SkillId, damage.SkillIdWithState);
-                            var ownerId = ProjectileOwner.ContainsKey(damage.PlayerId) ? ProjectileOwner[damage.PlayerId] : damage.PlayerId;
-                            var ownerName = IdToName.ContainsKey(ownerId) ? IdToName[ownerId] : ownerId.ToString("X");
-                            if (ownerName == "MyTempName")
-                            {
-                                var className = Skill.GetClassFromSkill(damage.SkillId);
-                                if (className != "UnknownClass")
-                                {
-                                    ownerName = IdToName[ownerId] = className + (IdToName.ContainsValue(className) ? (" - " + Guid.NewGuid().ToString().Substring(0, 4)) : "");
-                                }
-                            }
-                            var targetName = IdToName.ContainsKey(dmgEvent.TargetId) ? IdToName[dmgEvent.TargetId] : dmgEvent.TargetId.ToString("X");
-                            connection.Send("data", DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + ownerName + "," + targetName + "," + skillName + "," + dmgEvent.Damage + "," + (((dmgEvent.FlagsMaybe & 0x81) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x10) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x20) > 0) ? "1" : "0"));
-                        }
-                    }
-                }
-                else if (opcode == OpCodes.PKTAbnormalMoveNotify)
-                {
-                    // normal mobs when skills make them move. not needed for boss tracking, since guardians don't get moved by abilities. this will show more damage taken by players
-                }
-                if (packets.Length < packetSize) throw new Exception("bad packet maybe");
+
+                if (packets.Length < packetSize) connection.Send("error", "Bad packet maybe");
                 packets = packets.Skip(packetSize).ToArray();
             }
         }
+        private void backgroundPacketProcessor()
+        {
+            while (true)
+            {
+                Thread.Sleep(10);
+
+                var count = packetQueue.Count;
+                if (count == 0)
+                    continue;
+
+                var newPackets = new List<Packet>();
+                for (int i = 0; i < count; ++i)
+                {
+                    Packet packet;
+                    lock (packetQueue)
+                        packet = packetQueue.Dequeue();
+
+                    if (packet == null)
+                        continue;
+
+                    newPackets.Add(packet);
+                }
+
+
+                foreach (var packet in newPackets)
+                {
+                    if(packet.op == OpCodes.PKTInitPC)
+                    {
+                        //Console.WriteLine(Convert.ToHexString(packet.payload));
+                    }
+                    else if (packet.op == OpCodes.PKTNewProjectile)
+                    {
+                        UInt64 projectileId = BitConverter.ToUInt64(packet.payload, 4);
+                        UInt64 playerId = BitConverter.ToUInt64(packet.payload, 12);
+                        Entity c = GetEntityById(playerId);
+                        connection.Send("message", "new projectile from " + playerId);
+                        if (c != null)
+                            Projectiles[projectileId] = c;
+                    }
+                    else if (packet.op == OpCodes.PKTNewPC)
+                    {
+                        var pc = new PKTNewPC(packet.payload);
+                        var pcClass = Npc.GetPcClass(pc.ClassId);
+                        Entity c = new Entity();
+                        c.Name = pc.Name;
+                        c.Id = pc.PlayerId;
+                        c.ClassName = pcClass;
+                        connection.Send("message", "new player: " + pc.Name + " " + pc.PlayerId + " " + pcClass);
+                        Characters.Add(c);
+                    }
+                    else if (packet.op == OpCodes.PKTInitEnv)
+                    {
+                        Characters.Clear();
+                        Projectiles.Clear();
+                        Targets.Clear();
+
+                        var pc = new PKTInitEnv(packet.payload);
+                        Entity c = new Entity();
+                        c.Id = pc.PlayerId;
+                        c.Name = "$You";
+                        connection.Send("message", "new instance, your id: " + pc.PlayerId);
+                        Characters.Add(c);
+                    }
+                    else if (packet.op == OpCodes.PKTSkillDamageNotify)
+                    {
+                        var damage = new PKTSkillDamageNotify(packet.payload);
+
+                        foreach (var dmgEvent in damage.Events)
+                        {
+                            var className = Skill.GetClassFromSkill(damage.SkillId);
+
+                            var skillName = Skill.GetSkillName(damage.SkillId, damage.SkillIdWithState);
+                            // if a projectile, get the owner's ID
+                            var ownerId = Projectiles.ContainsKey(damage.PlayerId) ? Projectiles[damage.PlayerId].Id : damage.PlayerId;
+
+                            Entity c = GetEntityById(ownerId);
+                            if (c != null)
+                            {
+                                if (className == "UnknownClass" && c.ClassName == "")
+                                {
+                                    continue;
+                                }
+                                else if (c.ClassName == "" && className != "UnknownClass")
+                                    c.ClassName = className;
+                                
+                                Entity t = GetEntityById(dmgEvent.TargetId);
+                                var targetName = t != null ? t.Name : dmgEvent.TargetId.ToString("X");
+                                connection.Send("data", DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + c.Name + " (" + c.ClassName + ")" + "," + targetName + "," + skillName + "," + dmgEvent.Damage + "," + (((dmgEvent.FlagsMaybe & 0x81) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x10) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x20) > 0) ? "1" : "0"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         TcpReconstruction tcpReconstruction;
         void EndCapture()
         {
-            if (combatFound)
-            {
-                combatFound = false;
-            }
             currentIpAddr = 0xdeadbeef;
         }
         void Device_OnPacketArrival(Byte[] bytes)
@@ -215,7 +308,6 @@ namespace Lost_Ark_Packet_Capture
             {
                 var tcp = new PacketDotNet.TcpPacket(new PacketDotNet.Utils.ByteArraySegment(bytes.Skip(20).ToArray()));
                 if (tcp.SourcePort != 6040) return; // this filter should be moved up before parsing to TcpPacket for performance
-
                 var srcAddr = BitConverter.ToUInt32(bytes, 12);
                 if (srcAddr != currentIpAddr)
                 {
@@ -223,7 +315,6 @@ namespace Lost_Ark_Packet_Capture
                     {
                         EndCapture();
                         currentIpAddr = srcAddr;
-                        //loggedPacketCount = 0;
                         tcpReconstruction = new TcpReconstruction(ProcessPacket);
                     }
                     else return;

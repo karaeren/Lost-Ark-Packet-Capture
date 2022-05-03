@@ -8,7 +8,8 @@ namespace Lost_Ark_Packet_Capture
         public UInt64 PlayerId;
         public PKTInitEnv(Byte[] bytes)
         {
-            PlayerId = BitConverter.ToUInt64(bytes, 27);
+            //Console.WriteLine(Convert.ToHexString(bytes) +  " length " + bytes.Length.ToString());
+            PlayerId = BitConverter.ToUInt64(bytes, bytes.Length-16);
         }
     }
 }

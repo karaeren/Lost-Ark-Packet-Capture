@@ -10,7 +10,7 @@ namespace Lost_Ark_Packet_Capture
 #if DEBUG
         static string RuleName = "Lost Ark Packet Capture Debug";
 #else
-        static string RuleName = "Lost Ark Packet Capture Prod";
+        static string RuleName = "Lost Ark Packet Capture";
 #endif
 
         public static bool RuleExists(string name)
