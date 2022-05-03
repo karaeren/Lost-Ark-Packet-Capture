@@ -46,8 +46,7 @@ namespace Lost_Ark_Packet_Capture
             OpCodes.PKTNewPC,
             OpCodes.PKTInitEnv,
             OpCodes.PKTSkillDamageNotify,
-            OpCodes.PKTNewNpc,
-            OpCodes.PKTInitPC
+            OpCodes.PKTNewNpc
         };
 
         public void Start()
