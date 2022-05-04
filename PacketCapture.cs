@@ -46,11 +46,13 @@ namespace Lost_Ark_Packet_Capture
         {
             try
             {
-                System.Net.WebClient wc = new System.Net.WebClient();
-                byte[] raw = wc.DownloadData("https://gitcdn.link/cdn/karaeren/Lost-Ark-Packet-Capture/master/Data/xor.txt");
+                using var httpClient = new HttpClient();
+                var request = new HttpRequestMessage(HttpMethod.Get, "https://gitcdn.link/cdn/karaeren/Lost-Ark-Packet-Capture/master/Data/xor.txt");
+                var response = httpClient.Send(request);
+                using var reader = new StreamReader(response.Content.ReadAsStream());
+                var responseBody = reader.ReadToEnd();
 
-                string webData = System.Text.Encoding.UTF8.GetString(raw);
-                Environment.XorTable = Convert.FromBase64String(webData);
+                Environment.XorTable = Convert.FromBase64String(responseBody);
             }
             catch (Exception e)
             {
