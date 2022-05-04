@@ -4,7 +4,7 @@ namespace Lost_Ark_Packet_Capture
 {
     public class FirewallManager
     {
-        static string RuleName = "Lost Ark Packet Capture";
+        static string RuleName = "Lost Ark Packet Capture v0.2";
 
         public static bool RuleExists(string name)
         {
@@ -35,18 +35,6 @@ namespace Lost_Ark_Packet_Capture
                     break;
                 }
         }
-        public static void UpdateRuleApplication(string name)
-        {
-            var firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
-            foreach (INetFwRule firewallRule in firewallPolicy.Rules)
-                if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (firewallRule.ApplicationName != System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName)
-                        firewallRule.ApplicationName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-
-                    break;
-                }
-        }
 
         public static void AllowFirewall()
         {
@@ -56,8 +44,6 @@ namespace Lost_Ark_Packet_Capture
                 {
                     EnableRule(RuleName);
                 }
-
-                UpdateRuleApplication(RuleName);
             }
             else AddRule();
         }
@@ -72,7 +58,7 @@ namespace Lost_Ark_Packet_Capture
             firewallRule.InterfaceTypes = "All";
             firewallRule.Protocol = 6;
             firewallRule.RemotePorts = "6040";
-            firewallRule.ApplicationName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+            //firewallRule.ApplicationName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
             firewallRule.Enabled = true;
             firewallPolicy.Rules.Add(firewallRule);
         }

@@ -12,7 +12,8 @@ namespace Lost_Ark_Packet_Capture
         HashSet<Entity> Targets = new HashSet<Entity>();
 
         // Hashset for Sockets. For each available IP, a socket connection will be open if possible.
-        HashSet<Socket> Sockets = new HashSet<Socket>();
+        //HashSet<Socket> Sockets = new HashSet<Socket>();
+        Socket socket;
         // Packet Buffer
         Byte[] packetBuffer = new Byte[0x10000];
 
@@ -27,7 +28,14 @@ namespace Lost_Ark_Packet_Capture
             FirewallManager.AllowFirewall();
             EZLogger.log("debug", "Firewall rules set up!");
 
-            StartConnection();
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.IP);
+            socket.Bind(new IPEndPoint(GetLocalIPAddress(), 0));
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, true);
+            socket.IOControl(IOControlCode.ReceiveAll, BitConverter.GetBytes(1), BitConverter.GetBytes(0));
+            byte[] packetBuffer1 = packetBuffer;
+            socket.BeginReceive(packetBuffer1, 0, packetBuffer1.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
+            EZLogger.log("debug", "Socket is set up at " + GetLocalIPAddress().ToString() + "!");
+            //StartConnection();
             EZLogger.log("debug", "All connections started");
 
             Thread workerThread = new Thread(new ThreadStart(backgroundPacketProcessor));
@@ -37,6 +45,16 @@ namespace Lost_Ark_Packet_Capture
             EZLogger.log("message", "Connection is ready!");
 
             ElectronConnection.connection.Listen();
+        }
+
+        public static IPAddress GetLocalIPAddress()
+        {
+            // TODO: find a better way to get ethernet/wifi adapter address
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            //var activeDevice = NetworkInterface.GetAllNetworkInterfaces().First(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback);
+            //var activeDeviceIpProp = activeDevice.GetIPProperties().UnicastAddresses.Select(a => a.Address.AddressFamily == AddressFamily.InterNetwork);
+            var ipAddress = host.AddressList.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork);
+            return ipAddress;
         }
 
         public void StartConnection()
@@ -52,8 +70,8 @@ namespace Lost_Ark_Packet_Capture
                     socket.Bind(new IPEndPoint(ip, 0));
                     socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, true);
                     socket.IOControl(IOControlCode.ReceiveAll, BitConverter.GetBytes(1), BitConverter.GetBytes(0));
-                    socket.BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), Sockets.Count);
-                    Sockets.Add(socket);
+                    //socket.BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), Sockets.Count);
+                    //Sockets.Add(socket);
                     EZLogger.log("debug", "Connection on " + ip);
                 }
                 catch
@@ -67,7 +85,8 @@ namespace Lost_Ark_Packet_Capture
         {
             try
             {
-                var bytesRead = Sockets.ElementAt((int)ar.AsyncState).EndReceive(ar);
+                var bytesRead = socket?.EndReceive(ar);
+                //var bytesRead = Sockets.ElementAt((int)ar.AsyncState).EndReceive(ar);
                 if (bytesRead > 0)
                 {
                     Device_OnPacketArrival(packetBuffer.Take((int)bytesRead).ToArray());
@@ -78,7 +97,8 @@ namespace Lost_Ark_Packet_Capture
             {
                 EZLogger.log("error", ex.Message);
             }
-            Sockets.ElementAt((int)ar.AsyncState).BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), (int)ar.AsyncState);
+            socket?.BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
+            //Sockets.ElementAt((int)ar.AsyncState).BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), (int)ar.AsyncState);
         }
         void Xor(byte[] data, int seed, byte[] xorKey)
         {
@@ -158,6 +178,9 @@ namespace Lost_Ark_Packet_Capture
                 {
                     if (packet.op == OpCodes.PKTNewProjectile)
                     {
+                        EZLogger.log("debug", "PKTNewProjectile");
+                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+
                         UInt64 projectileId = BitConverter.ToUInt64(packet.payload, 4);
                         UInt64 playerId = BitConverter.ToUInt64(packet.payload, 12);
                         Entity c = Entity.GetEntityById(playerId, Characters);
@@ -171,6 +194,9 @@ namespace Lost_Ark_Packet_Capture
                     }
                     else if (packet.op == OpCodes.PKTNewPC)
                     {
+                        EZLogger.log("debug", "PKTNewPC");
+                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+
                         var pc = new PKTNewPC(packet.payload);
                         var pcClass = Npc.GetPcClass(pc.ClassId);
                         Entity c = new Entity();
@@ -184,6 +210,9 @@ namespace Lost_Ark_Packet_Capture
                     }
                     else if (packet.op == OpCodes.PKTInitEnv)
                     {
+                        EZLogger.log("debug", "PKTInitEnv");
+                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+
                         Characters.Clear();
                         Projectiles.Clear();
                         Targets.Clear();
@@ -199,10 +228,14 @@ namespace Lost_Ark_Packet_Capture
                     }
                     else if (packet.op == OpCodes.PKTSkillDamageNotify)
                     {
+                        EZLogger.log("debug", "PKTSkillDamageNotify");
+                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+
                         var damage = new PKTSkillDamageNotify(packet.payload);
 
                         foreach (var dmgEvent in damage.Events)
                         {
+                            EZLogger.log("debug", "new dmg event");
                             var className = Skill.GetClassFromSkill(damage.SkillId);
 
                             var skillName = Skill.GetSkillName(damage.SkillId, damage.SkillIdWithState);

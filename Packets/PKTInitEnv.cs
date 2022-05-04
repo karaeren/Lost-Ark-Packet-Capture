@@ -7,8 +7,7 @@
         public UInt64 PlayerId;
         public PKTInitEnv(Byte[] bytes)
         {
-            //Console.WriteLine(Convert.ToHexString(bytes) +  " length " + bytes.Length.ToString());
-            PlayerId = BitConverter.ToUInt64(bytes, bytes.Length - 16);
+            PlayerId = BitConverter.ToUInt32(bytes, 15);
         }
     }
 }
