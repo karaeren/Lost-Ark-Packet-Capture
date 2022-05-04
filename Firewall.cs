@@ -1,7 +1,4 @@
 ﻿using NetFwTypeLib;
-using System;
-using System.Collections.Generic;
-using System.Threading;
 
 namespace Lost_Ark_Packet_Capture
 {
@@ -33,7 +30,7 @@ namespace Lost_Ark_Packet_Capture
                 if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                     firewallRule.Enabled = true;
         }
-        
+
         public static void UpdateRuleApplication(string name)
         {
             var firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));

@@ -2,7 +2,6 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Threading;
 
 namespace Lost_Ark_Packet_Capture
 {
@@ -59,11 +58,11 @@ namespace Lost_Ark_Packet_Capture
             connection = new ConnectionBuilder().WithLogging().Build();
 
             OodleInit();
-            if(debugMode)
+            if (debugMode)
                 connection.Send("message", "Oodle init done!");
 
             FirewallManager.AllowFirewall();
-            if(debugMode)
+            if (debugMode)
                 connection.Send("message", "Firewall rules set up!");
 
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.IP);
@@ -72,12 +71,12 @@ namespace Lost_Ark_Packet_Capture
             socket.IOControl(IOControlCode.ReceiveAll, BitConverter.GetBytes(1), BitConverter.GetBytes(0));
             byte[] packetBuffer1 = packetBuffer;
             socket.BeginReceive(packetBuffer1, 0, packetBuffer1.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
-            if(debugMode)
+            if (debugMode)
                 connection.Send("message", "Socket is set up at " + GetLocalIPAddress().ToString() + "!");
 
             Thread workerThread = new Thread(new ThreadStart(backgroundPacketProcessor));
             workerThread.Start();
-            if(debugMode)
+            if (debugMode)
                 connection.Send("message", "Running background worker!");
 
             connection.Send("message", "Connection is ready!");
@@ -118,7 +117,7 @@ namespace Lost_Ark_Packet_Capture
         UInt32 currentIpAddr = 0xdeadbeef;
         Byte[] fragmentedPacket = new Byte[0];
         Byte[] XorTable = Convert.FromBase64String("lhs9nuO0tqJVKLVNYzeXhClXrz44CESmP/HiNeeIfO6kLCEiwJEPkE7G9uEA0mv+AV0ET2aUgka30RFvL229aQbV9bvI+JtFcxRLHMKTlWFcs3Qtz0BCFaOAuF4uq3oK140JeyAfB6pIwR3e97o7jJIQvhmnyo6JnDFD3DDqEw7/hRc2zYflUXhU5J1QpW6B9DN9TIa8AypWEtZ++iNJ78vD/Dx16cRost8W05kYmOgmauuLOVrzxUry0INHU4rOcXfM8PlgKzpYYiSaC+DYZ/u5/VlSrqGgZDTUW92tv2wC2agncrDHBdvmDSUeMrGs7XCpeX9BGsmfZezaX48Mdg==");
-        
+
         void Xor(byte[] data, int seed, byte[] xorKey)
         {
             for (int i = 0; i < data.Length; i++) data[i] = (byte)(data[i] ^ xorKey[seed++ % xorKey.Length]);
@@ -129,7 +128,7 @@ namespace Lost_Ark_Packet_Capture
         [DllImport("oo2net_9_win64")] static extern void OodleNetwork1_Shared_SetWindow(byte[] data, int length, byte[] data2, int length2);
         [DllImport("oo2net_9_win64")] static extern int OodleNetwork1UDP_State_Size();
         [DllImport("oo2net_9_win64")] static extern int OodleNetwork1_Shared_Size(int bits);
-     
+
         Byte[] oodleState;
         Byte[] oodleSharedDict;
 
@@ -292,7 +291,7 @@ namespace Lost_Ark_Packet_Capture
                                 }
                                 else if (c.ClassName == "" && className != "UnknownClass")
                                     c.ClassName = className;
-                                
+
                                 Entity t = GetEntityById(dmgEvent.TargetId);
                                 var targetName = t != null ? t.Name : dmgEvent.TargetId.ToString("X");
                                 connection.Send("data", DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + c.Name + " (" + c.ClassName + ")" + "," + targetName + "," + skillName + "," + dmgEvent.Damage + "," + (((dmgEvent.FlagsMaybe & 0x81) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x10) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x20) > 0) ? "1" : "0"));

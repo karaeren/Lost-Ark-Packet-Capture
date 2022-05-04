@@ -1,5 +1,4 @@
-﻿using System;
-namespace Lost_Ark_Packet_Capture
+﻿namespace Lost_Ark_Packet_Capture
 {
     public class PKTInitEnv
     {
@@ -9,7 +8,7 @@ namespace Lost_Ark_Packet_Capture
         public PKTInitEnv(Byte[] bytes)
         {
             //Console.WriteLine(Convert.ToHexString(bytes) +  " length " + bytes.Length.ToString());
-            PlayerId = BitConverter.ToUInt64(bytes, bytes.Length-16);
+            PlayerId = BitConverter.ToUInt64(bytes, bytes.Length - 16);
         }
     }
 }

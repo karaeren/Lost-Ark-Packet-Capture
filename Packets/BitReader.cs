@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Lost_Ark_Packet_Capture
+﻿namespace Lost_Ark_Packet_Capture
 {
     public class BitReader : IDisposable
     {

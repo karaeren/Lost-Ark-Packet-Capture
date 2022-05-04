@@ -1,6 +1,4 @@
-﻿using System;
-using System.IO;
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Lost_Ark_Packet_Capture

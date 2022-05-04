@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Text;
-
-// Translated from the file follow.c from WireShark source code
+﻿// Translated from the file follow.c from WireShark source code
 // the code can be found at: http://www.wireshark.org/download.html
 
 namespace Lost_Ark_Packet_Capture
