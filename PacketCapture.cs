@@ -28,13 +28,22 @@ namespace Lost_Ark_Packet_Capture
             FirewallManager.AllowFirewall();
             EZLogger.log("debug", "Firewall rules set up!");
 
+            IPEndPoint endPoint;
+            IPAddress localIP;
+            using (Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
+            {
+                s.Connect("8.8.8.8", 65530);
+                endPoint = s.LocalEndPoint as IPEndPoint;
+                localIP = endPoint.Address;
+            }
+
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.IP);
-            socket.Bind(new IPEndPoint(GetLocalIPAddress(), 0));
+            socket.Bind(new IPEndPoint(localIP, 0));
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, true);
             socket.IOControl(IOControlCode.ReceiveAll, BitConverter.GetBytes(1), BitConverter.GetBytes(0));
             byte[] packetBuffer1 = packetBuffer;
             socket.BeginReceive(packetBuffer1, 0, packetBuffer1.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
-            EZLogger.log("debug", "Socket is set up at " + GetLocalIPAddress().ToString() + "!");
+            EZLogger.log("debug", "Socket is set up at " + localIP.ToString() + "!");
             //StartConnection();
             EZLogger.log("debug", "All connections started");
 
@@ -45,16 +54,6 @@ namespace Lost_Ark_Packet_Capture
             EZLogger.log("message", "Connection is ready!");
 
             ElectronConnection.connection.Listen();
-        }
-
-        public static IPAddress GetLocalIPAddress()
-        {
-            // TODO: find a better way to get ethernet/wifi adapter address
-            var host = Dns.GetHostEntry(Dns.GetHostName());
-            //var activeDevice = NetworkInterface.GetAllNetworkInterfaces().First(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback);
-            //var activeDeviceIpProp = activeDevice.GetIPProperties().UnicastAddresses.Select(a => a.Address.AddressFamily == AddressFamily.InterNetwork);
-            var ipAddress = host.AddressList.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork);
-            return ipAddress;
         }
 
         public void StartConnection()
@@ -179,7 +178,7 @@ namespace Lost_Ark_Packet_Capture
                     if (packet.op == OpCodes.PKTNewProjectile)
                     {
                         EZLogger.log("debug", "PKTNewProjectile");
-                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+                        //EZLogger.log("debug", Convert.ToHexString(packet.payload));
 
                         UInt64 projectileId = BitConverter.ToUInt64(packet.payload, 4);
                         UInt64 playerId = BitConverter.ToUInt64(packet.payload, 12);
@@ -195,7 +194,7 @@ namespace Lost_Ark_Packet_Capture
                     else if (packet.op == OpCodes.PKTNewPC)
                     {
                         EZLogger.log("debug", "PKTNewPC");
-                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+                        //EZLogger.log("debug", Convert.ToHexString(packet.payload));
 
                         var pc = new PKTNewPC(packet.payload);
                         var pcClass = Npc.GetPcClass(pc.ClassId);
@@ -211,7 +210,7 @@ namespace Lost_Ark_Packet_Capture
                     else if (packet.op == OpCodes.PKTInitEnv)
                     {
                         EZLogger.log("debug", "PKTInitEnv");
-                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+                        //EZLogger.log("debug", Convert.ToHexString(packet.payload));
 
                         Characters.Clear();
                         Projectiles.Clear();
@@ -229,7 +228,7 @@ namespace Lost_Ark_Packet_Capture
                     else if (packet.op == OpCodes.PKTSkillDamageNotify)
                     {
                         EZLogger.log("debug", "PKTSkillDamageNotify");
-                        EZLogger.log("debug", Convert.ToHexString(packet.payload));
+                        //EZLogger.log("debug", Convert.ToHexString(packet.payload));
 
                         var damage = new PKTSkillDamageNotify(packet.payload);
 
@@ -278,10 +277,6 @@ namespace Lost_Ark_Packet_Capture
         }
 
         TcpReconstruction tcpReconstruction;
-        void EndCapture()
-        {
-            currentIpAddr = 0xdeadbeef;
-        }
 
         void Device_OnPacketArrival(Byte[] bytes)
         {
@@ -289,17 +284,19 @@ namespace Lost_Ark_Packet_Capture
             {
                 var tcp = new PacketDotNet.TcpPacket(new PacketDotNet.Utils.ByteArraySegment(bytes.Skip(20).ToArray()));
                 if (tcp.SourcePort != 6040) return; // this filter should be moved up before parsing to TcpPacket for performance
+                
                 var srcAddr = BitConverter.ToUInt32(bytes, 12);
                 if (srcAddr != currentIpAddr)
                 {
+                    // end session here
                     if (tcp.PayloadData.Length > 4 && (OpCodes)BitConverter.ToUInt16(tcp.PayloadData, 2) == OpCodes.PKTAuthTokenResult && tcp.PayloadData[0] == 0x1e)
                     {
-                        EndCapture();
                         currentIpAddr = srcAddr;
                         tcpReconstruction = new TcpReconstruction(ProcessPacket);
                     }
                     else return;
                 }
+
                 tcpReconstruction.ReassemblePacket(tcp);
             }
         }
