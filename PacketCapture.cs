@@ -199,9 +199,6 @@ namespace Lost_Ark_Packet_Capture
                 Xor(payload, (UInt16)opcode, XorTable);
                 if (packets[4] == 3) payload = OodleDecompress(payload).Skip(16).ToArray();
 
-                //if(opcode != OpCodes.PKTMoveNotify && opcode != OpCodes.PKTSkillDamageNotify && opcode != OpCodes.PKTSkillDamageAbnormalMoveNotify && opcode != OpCodes.PKTRemoveObject && opcode != OpCodes.PKTSkillStartNotify)
-                //Console.WriteLine(opcode + "\n" + Convert.ToHexString(payload) + "\n");
-
                 if (relevantOps.Contains(opcode))
                 {
                     Packet p = new Packet();
