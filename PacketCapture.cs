@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 
 namespace Lost_Ark_Packet_Capture
 {
