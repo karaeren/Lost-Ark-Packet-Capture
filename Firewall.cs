@@ -7,11 +7,7 @@ namespace Lost_Ark_Packet_Capture
 {
     public class FirewallManager
     {
-#if DEBUG
-        static string RuleName = "Lost Ark Packet Capture Debug";
-#else
         static string RuleName = "Lost Ark Packet Capture";
-#endif
 
         public static bool RuleExists(string name)
         {
@@ -37,6 +33,15 @@ namespace Lost_Ark_Packet_Capture
                 if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                     firewallRule.Enabled = true;
         }
+        
+        public static void UpdateRuleApplication(string name)
+        {
+            var firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
+            foreach (INetFwRule firewallRule in firewallPolicy.Rules)
+                if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    firewallRule.ApplicationName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+        }
+
         public static void AllowFirewall()
         {
             if (RuleExists(RuleName))
@@ -45,6 +50,8 @@ namespace Lost_Ark_Packet_Capture
                 {
                     EnableRule(RuleName);
                 }
+
+                UpdateRuleApplication(RuleName);
             }
             else AddRule();
         }
