@@ -4,7 +4,7 @@ namespace Lost_Ark_Packet_Capture
 {
     public class FirewallManager
     {
-        static string RuleName = "Lost Ark Packet Capture v0.2";
+        static string RuleName = "Lost Ark Packet Capture v0.3";
 
         public static bool RuleExists(string name)
         {
@@ -56,8 +56,8 @@ namespace Lost_Ark_Packet_Capture
             firewallRule.Action = NET_FW_ACTION_.NET_FW_ACTION_ALLOW;
             firewallRule.Direction = NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_IN;
             firewallRule.InterfaceTypes = "All";
-            firewallRule.Protocol = 6;
-            firewallRule.RemotePorts = "6040";
+            firewallRule.Protocol = 6; // TCP
+            //firewallRule.RemotePorts = "6040";
             //firewallRule.ApplicationName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
             firewallRule.Enabled = true;
             firewallPolicy.Rules.Add(firewallRule);
