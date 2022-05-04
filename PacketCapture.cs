@@ -27,9 +27,6 @@ namespace Lost_Ark_Packet_Capture
             FirewallManager.AllowFirewall();
             EZLogger.log("debug", "Firewall rules set up!");
 
-            UpdateXorTableFromRemote();
-            EZLogger.log("debug", "Got the Xor Table");
-
             StartConnection();
             EZLogger.log("debug", "All connections started");
 
@@ -40,24 +37,6 @@ namespace Lost_Ark_Packet_Capture
             EZLogger.log("message", "Connection is ready!");
 
             ElectronConnection.connection.Listen();
-        }
-
-        public void UpdateXorTableFromRemote()
-        {
-            try
-            {
-                using var httpClient = new HttpClient();
-                var request = new HttpRequestMessage(HttpMethod.Get, "https://gitcdn.link/cdn/karaeren/Lost-Ark-Packet-Capture/master/Data/xor.txt");
-                var response = httpClient.Send(request);
-                using var reader = new StreamReader(response.Content.ReadAsStream());
-                var responseBody = reader.ReadToEnd();
-
-                Environment.XorTable = Convert.FromBase64String(responseBody);
-            }
-            catch (Exception e)
-            {
-                EZLogger.log("error", "An error happened while trying to retrieve remote Xor table.");
-            }
         }
 
         public void StartConnection()
