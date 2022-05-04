@@ -8,6 +8,11 @@ namespace Lost_Ark_Packet_Capture
 {
     public class PacketCapture
     {
+#if DEBUG
+        bool debugMode = true;
+#else
+        bool debugMode = false;
+#endif
         public class Entity
         {
             public UInt64 Id;
@@ -54,10 +59,12 @@ namespace Lost_Ark_Packet_Capture
             connection = new ConnectionBuilder().WithLogging().Build();
 
             OodleInit();
-            connection.Send("message", "Oodle init done!");
+            if(debugMode)
+                connection.Send("message", "Oodle init done!");
 
             FirewallManager.AllowFirewall();
-            connection.Send("message", "Firewall rules set up!");
+            if(debugMode)
+                connection.Send("message", "Firewall rules set up!");
 
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.IP);
             socket.Bind(new IPEndPoint(GetLocalIPAddress(), 0));
@@ -65,12 +72,15 @@ namespace Lost_Ark_Packet_Capture
             socket.IOControl(IOControlCode.ReceiveAll, BitConverter.GetBytes(1), BitConverter.GetBytes(0));
             byte[] packetBuffer1 = packetBuffer;
             socket.BeginReceive(packetBuffer1, 0, packetBuffer1.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
-            connection.Send("message", "Socket is set up at " + GetLocalIPAddress().ToString() + "!");
+            if(debugMode)
+                connection.Send("message", "Socket is set up at " + GetLocalIPAddress().ToString() + "!");
 
             Thread workerThread = new Thread(new ThreadStart(backgroundPacketProcessor));
             workerThread.Start();
-            connection.Send("message", "Running background worker!");
+            if(debugMode)
+                connection.Send("message", "Running background worker!");
 
+            connection.Send("message", "Connection is ready!");
             connection.Listen();
         }
 
@@ -189,6 +199,9 @@ namespace Lost_Ark_Packet_Capture
                 Xor(payload, (UInt16)opcode, XorTable);
                 if (packets[4] == 3) payload = OodleDecompress(payload).Skip(16).ToArray();
 
+                //if(opcode != OpCodes.PKTMoveNotify && opcode != OpCodes.PKTSkillDamageNotify && opcode != OpCodes.PKTSkillDamageAbnormalMoveNotify && opcode != OpCodes.PKTRemoveObject && opcode != OpCodes.PKTSkillStartNotify)
+                //Console.WriteLine(opcode + "\n" + Convert.ToHexString(payload) + "\n");
+
                 if (relevantOps.Contains(opcode))
                 {
                     Packet p = new Packet();
@@ -232,7 +245,7 @@ namespace Lost_Ark_Packet_Capture
                         UInt64 projectileId = BitConverter.ToUInt64(packet.payload, 4);
                         UInt64 playerId = BitConverter.ToUInt64(packet.payload, 12);
                         Entity c = GetEntityById(playerId);
-                        connection.Send("message", "new projectile from " + playerId);
+                        //connection.Send("message", "new projectile from " + playerId);
                         if (c != null)
                             Projectiles[projectileId] = c;
                     }
@@ -244,7 +257,7 @@ namespace Lost_Ark_Packet_Capture
                         c.Name = pc.Name;
                         c.Id = pc.PlayerId;
                         c.ClassName = pcClass;
-                        connection.Send("message", "new player: " + pc.Name + " " + pc.PlayerId + " " + pcClass);
+                        //connection.Send("message", "new player: " + pc.Name + " " + pc.PlayerId + " " + pcClass);
                         Characters.Add(c);
                     }
                     else if (packet.op == OpCodes.PKTInitEnv)
@@ -257,7 +270,8 @@ namespace Lost_Ark_Packet_Capture
                         Entity c = new Entity();
                         c.Id = pc.PlayerId;
                         c.Name = "$You";
-                        connection.Send("message", "new instance, your id: " + pc.PlayerId);
+                        //connection.Send("message", "new instance, your id: " + pc.PlayerId);
+                        connection.Send("message", "new instance");
                         Characters.Add(c);
                     }
                     else if (packet.op == OpCodes.PKTSkillDamageNotify)
