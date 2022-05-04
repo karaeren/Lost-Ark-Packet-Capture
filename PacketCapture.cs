@@ -182,9 +182,13 @@ namespace Lost_Ark_Packet_Capture
                         UInt64 projectileId = BitConverter.ToUInt64(packet.payload, 4);
                         UInt64 playerId = BitConverter.ToUInt64(packet.payload, 12);
                         Entity c = Entity.GetEntityById(playerId, Characters);
-                        //connection.Send("message", "new projectile from " + playerId);
+                        EZLogger.log("debug", "new projectile from " + playerId);
+                        // new-projectile,playerId,projectileId
+                        EZLogger.log("data-v2", "new-projectile," + playerId + "," + projectileId);
+
                         if (c != null)
                             Projectiles[projectileId] = c;
+
                     }
                     else if (packet.op == OpCodes.PKTNewPC)
                     {
@@ -194,7 +198,9 @@ namespace Lost_Ark_Packet_Capture
                         c.Name = pc.Name;
                         c.Id = pc.PlayerId;
                         c.ClassName = pcClass;
-                        //connection.Send("message", "new player: " + pc.Name + " " + pc.PlayerId + " " + pcClass);
+                        EZLogger.log("debug", "new player: " + pc.Name + " " + pc.PlayerId + " " + pcClass);
+                        // new-player,isYou,playerName,playerClass,playerId
+                        EZLogger.log("data-v2", "new-player,0," + pc.Name + "," + pcClass + "," + pc.PlayerId);
                         Characters.Add(c);
                     }
                     else if (packet.op == OpCodes.PKTInitEnv)
@@ -207,8 +213,9 @@ namespace Lost_Ark_Packet_Capture
                         Entity c = new Entity();
                         c.Id = pc.PlayerId;
                         c.Name = "$You";
-                        //connection.Send("message", "new instance, your id: " + pc.PlayerId);
                         EZLogger.log("message", "new instance");
+                        // new-player,isYou,playerName,playerClass,playerId
+                        EZLogger.log("data-v2", "new-player,1," + c.Name + ",UnknwonClass," + c.Id);
                         Characters.Add(c);
                     }
                     else if (packet.op == OpCodes.PKTSkillDamageNotify)
@@ -231,11 +238,26 @@ namespace Lost_Ark_Packet_Capture
                                     continue;
                                 }
                                 else if (c.ClassName == "" && className != "UnknownClass")
+                                {
                                     c.ClassName = className;
+                                    // change-class,playerId, playerClass
+                                    EZLogger.log("data-v2", "change-class," + c.Id + "," + c.ClassName);
+                                }
 
                                 Entity t = Entity.GetEntityById(dmgEvent.TargetId, Characters);
                                 var targetName = t != null ? t.Name : dmgEvent.TargetId.ToString("X");
                                 EZLogger.log("data", DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + c.Name + " (" + c.ClassName + ")" + "," + targetName + "," + skillName + "," + dmgEvent.Damage + "," + (((dmgEvent.FlagsMaybe & 0x81) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x10) > 0) ? "1" : "0") + "," + (((dmgEvent.FlagsMaybe & 0x20) > 0) ? "1" : "0"));
+                                EZLogger.log("data-v2",
+                                    "damage," + // flag
+                                    DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + // date
+                                    c.Name + "," + // character name
+                                    c.ClassName + "," + // character class
+                                    targetName + "," + // target name
+                                    skillName + "," + // skill name
+                                    dmgEvent.Damage + "," + // damage amount
+                                    (((dmgEvent.FlagsMaybe & 0x81) > 0) ? "1" : "0") + "," + // crit flag
+                                    (((dmgEvent.FlagsMaybe & 0x10) > 0) ? "1" : "0") + "," + // back attack flag
+                                    (((dmgEvent.FlagsMaybe & 0x20) > 0) ? "1" : "0")); // front attack flag
                             }
                         }
                     }
