@@ -12,6 +12,7 @@ namespace Lost_Ark_Packet_Capture
             foreach (INetFwRule firewallRule in firewallPolicy.Rules)
                 if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                     return true;
+
             return false;
         }
 
@@ -21,6 +22,7 @@ namespace Lost_Ark_Packet_Capture
             foreach (INetFwRule firewallRule in firewallPolicy.Rules)
                 if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                     return firewallRule.Enabled;
+
             return false;
         }
         public static void EnableRule(string name)
@@ -28,15 +30,22 @@ namespace Lost_Ark_Packet_Capture
             var firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
             foreach (INetFwRule firewallRule in firewallPolicy.Rules)
                 if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
                     firewallRule.Enabled = true;
+                    break;
+                }
         }
-
         public static void UpdateRuleApplication(string name)
         {
             var firewallPolicy = (INetFwPolicy2)Activator.CreateInstance(Type.GetTypeFromProgID("HNetCfg.FwPolicy2"));
             foreach (INetFwRule firewallRule in firewallPolicy.Rules)
                 if (firewallRule.Name != null && firewallRule.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
-                    firewallRule.ApplicationName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                {
+                    if (firewallRule.ApplicationName != System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName)
+                        firewallRule.ApplicationName = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+
+                    break;
+                }
         }
 
         public static void AllowFirewall()
