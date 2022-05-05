@@ -22,28 +22,22 @@ namespace Lost_Ark_Packet_Capture
                     File.Copy(@"C:\Program Files (x86)\Steam\steamapps\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll", "oo2net_9_win64.dll");
                     continue;
                 }
-                EZLogger.log("error", "Please copy oo2net_9_win64 from LostArk directory to current directory.");
+
+                var installLocation = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1599340")?.GetValue("InstallLocation");
+                if (installLocation != null)
+                {
+                    var oodleDll = Path.Combine(installLocation.ToString(), "Binaries", "Win64", "oo2net_9_win64.dll");
+                    if (File.Exists(oodleDll))
+                    {
+                        File.Copy(oodleDll, "oo2net_9_win64.dll");
+                        continue;
+                    }
+                }
+
+                EZLogger.log("error", "Please copy oo2net_9_win64.dll from LostArk directory to current directory.");
+                System.Environment.Exit(1);
             }
-            while (!File.Exists("oo2net_9_win64.dll"))
-            {
-                var steamPath = Path.Combine(Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam").GetValue("SteamPath").ToString(), "steamapps");
-                var oodleDll = steamPath + @"\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll";
-                if (File.Exists(@"C:\Program Files (x86)\Steam\steamapps\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll"))
-                {
-                    File.Copy(@"C:\Program Files (x86)\Steam\steamapps\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll", "oo2net_9_win64.dll");
-                    continue;
-                }
-                else if (File.Exists(oodleDll))
-                {
-                    File.Copy(oodleDll, "oo2net_9_win64.dll");
-                    continue;
-                }
-                else
-                {
-                    EZLogger.log("error", "Please copy oo2net_9_win64.dll from LostArk directory to current directory.");
-                    break;
-                }
-            }
+
             var payload = ObjectSerialize.Decompress(Properties.Resources.oodle_state);
             var dict = payload.Skip(0x20).Take(0x800000).ToArray();
             var compressorSize = BitConverter.ToInt32(payload, 0x18);

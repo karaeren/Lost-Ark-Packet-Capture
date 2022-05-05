@@ -33,7 +33,6 @@ namespace Lost_Ark_Packet_Capture
                     if (packetQueue.TryTake(out Byte[] packet))
                     {
                         Device_OnPacketArrival(packet);
-                        Thread.Sleep(10);
                     }
                 }
             });
@@ -94,7 +93,6 @@ namespace Lost_Ark_Packet_Capture
         void ProcessPacket(List<Byte> data)
         {
             var packets = data.ToArray();
-            var packetWithTimestamp = BitConverter.GetBytes(DateTime.UtcNow.ToBinary()).ToArray().Concat(data);
             while (packets.Length > 0)
             {
                 if (fragmentedPacket.Length > 0)
@@ -102,6 +100,7 @@ namespace Lost_Ark_Packet_Capture
                     packets = fragmentedPacket.Concat(packets).ToArray();
                     fragmentedPacket = new Byte[0];
                 }
+
                 if (6 > packets.Length)
                 {
                     fragmentedPacket = packets.ToArray();
@@ -110,13 +109,20 @@ namespace Lost_Ark_Packet_Capture
 
                 var opcode = (OpCodes)BitConverter.ToUInt16(packets, 2);
                 var packetSize = BitConverter.ToUInt16(packets.ToArray(), 0);
+
                 if (packetSize > packets.Length)
                 {
-                    fragmentedPacket = packets.ToArray();
-                    continue;
+                    fragmentedPacket = new Byte[0];
+                    return;
                 }
 
-                if (packets[5] != 1 || 6 > packets.Length || packetSize < 7) return;
+                //if (packets[5] != 1 || 6 > packets.Length || packetSize < 7) return;
+                if (packets[5] != 1)
+                {
+                    packets = packets.Skip(packets.Length).ToArray();
+                    fragmentedPacket = new Byte[0];
+                }
+
                 var payload = packets.Skip(6).Take(packetSize - 6).ToArray();
                 Xor.Cipher(payload, (UInt16)opcode, Environment.XorTable);
                 if (packets[4] == 3) payload = Oodle.OodleDecompress(payload).Skip(16).ToArray();
@@ -182,13 +188,13 @@ namespace Lost_Ark_Packet_Capture
                                     (((dmgEvent.FlagsMaybe & 0x20) > 0) ? "1" : "0")); // front attack flag
                         }
                     }
-                    else if (opcode == OpCodes.PKTSkillDamageAbnormalMoveNotify)
-                    {
-                        var damage = new PKTSkillDamageAbnormalMoveNotify(payload);
-                        //for (var i = 0; i < payload.Length - 4; i++)
-                        //    Console.WriteLine(i + " : " + BitConverter.ToUInt32(payload, i) + " : " + BitConverter.ToUInt32(payload, i).ToString("X"));
-                        // normal mobs when skills make them move. not needed for boss tracking, since guardians don't get moved by abilities. this will show more damage taken by players
-                    }
+                    //else if (opcode == OpCodes.PKTSkillDamageAbnormalMoveNotify)
+                    //{
+                    //    var damage = new PKTSkillDamageAbnormalMoveNotify(payload);
+                    //    //for (var i = 0; i < payload.Length - 4; i++)
+                    //    //    Console.WriteLine(i + " : " + BitConverter.ToUInt32(payload, i) + " : " + BitConverter.ToUInt32(payload, i).ToString("X"));
+                    //    // normal mobs when skills make them move. not needed for boss tracking, since guardians don't get moved by abilities. this will show more damage taken by players
+                    //}
                 }
 
                 if (packets.Length < packetSize) EZLogger.log("error", "Bad packet maybe");
