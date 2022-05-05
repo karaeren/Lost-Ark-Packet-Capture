@@ -33,6 +33,7 @@ namespace Lost_Ark_Packet_Capture
                     if (packetQueue.TryTake(out Byte[] packet))
                     {
                         Device_OnPacketArrival(packet);
+                        Thread.Sleep(10);
                     }
                 }
             });
