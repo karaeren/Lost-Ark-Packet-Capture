@@ -37,20 +37,9 @@ namespace Lost_Ark_Packet_Capture
         public PKTNewPC(Byte[] Bytes)
         {
             var bitReader = new BitReader(Bytes);
-            bitReader.ReadByte();
-            bitReader.ReadUInt64();
             //bitReader.ReadByte();
-            //PCTypeMaybe1 = bitReader.ReadByte();
-            //PCTypeMaybe2 = bitReader.ReadByte();
-            //PCTypeMaybe3 = bitReader.ReadByte();
-            //bitReader.ReadByte();
-            //if (PCTypeMaybe2 > 0) bitReader.ReadUInt64();
-            //if (PCTypeMaybe2 > 0 || PCTypeMaybe3 > 0)
-            //{
-            //    bitReader.ReadUInt64();
-            //    bitReader.ReadUInt32();
-            //}
-            //UnkId = bitReader.ReadUInt64();
+            PCTypeMaybe1 = bitReader.ReadByte();
+            UnkId = bitReader.ReadUInt64();
             PlayerId = bitReader.ReadUInt64();
             Name = ReadString(bitReader, true);
             Two = bitReader.ReadByte();

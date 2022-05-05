@@ -2,6 +2,6 @@
 {
     public class SkillEffect
     {
-        public static Dictionary<String, String> Items = (Dictionary<String, String>)ObjectSerialize.Deserialize(Properties.Resources.SkillEffect);
+        public static Dictionary<Int32, String> Items = (Dictionary<Int32, String>)ObjectSerialize.Deserialize(Properties.Resources.SkillEffect);
     }
 }
