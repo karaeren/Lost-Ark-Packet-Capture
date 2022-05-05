@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Sockets;
 
 namespace Lost_Ark_Packet_Capture
@@ -16,22 +17,25 @@ namespace Lost_Ark_Packet_Capture
             FirewallManager.AllowFirewall();
             EZLogger.log("debug", "Firewall rules set up!");
 
-            IPEndPoint endPoint;
-            IPAddress localIP;
-            using (Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
-            {
-                s.Connect("8.8.8.8", 65530);
-                endPoint = s.LocalEndPoint as IPEndPoint;
-                localIP = endPoint.Address;
-            }
-
+            var localIP = GetLocalIPAddress();
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.IP);
-            socket.Bind(new IPEndPoint(localIP, 0));
+            socket.Bind(new IPEndPoint(localIP, 6040));
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, true);
             socket.IOControl(IOControlCode.ReceiveAll, BitConverter.GetBytes(1), BitConverter.GetBytes(0));
             byte[] packetBuffer1 = packetBuffer;
             socket.BeginReceive(packetBuffer1, 0, packetBuffer1.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
             EZLogger.log("debug", "Socket is set up at " + localIP.ToString() + "!");
+
+            Task.Run(() =>
+            {
+                while (!packetQueue.IsCompleted)
+                {
+                    if (packetQueue.TryTake(out Byte[] packet))
+                    {
+                        Device_OnPacketArrival(packet);
+                    }
+                }
+            });
 
             EZLogger.log("debug", "All connections started");
 
@@ -40,6 +44,28 @@ namespace Lost_Ark_Packet_Capture
             ElectronConnection.connection.Listen();
         }
 
+        public static IPAddress GetLocalIPAddress()
+        {
+            try
+            {
+                var tempSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                var ipEndpoint = new IPEndPoint(IPAddress.Parse("8.8.8.8"), 6040).Serialize();
+                var optionIn = new Byte[ipEndpoint.Size];
+                for (int i = 0; i < ipEndpoint.Size; i++) optionIn[i] = ipEndpoint[i];
+                var optionOut = new Byte[optionIn.Length];
+                tempSocket.IOControl(IOControlCode.RoutingInterfaceQuery, optionIn, optionOut);
+                tempSocket.Close();
+                return new IPAddress(optionOut.Skip(4).Take(4).ToArray());
+            }
+            catch
+            {
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                var ipAddress = host.AddressList.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork);
+                return ipAddress;
+            }
+        }
+
+        BlockingCollection<Byte[]> packetQueue = new BlockingCollection<Byte[]>();
         private void OnReceive(IAsyncResult ar)
         {
             try
@@ -47,24 +73,22 @@ namespace Lost_Ark_Packet_Capture
                 var bytesRead = socket?.EndReceive(ar);
                 if (bytesRead > 0)
                 {
-                    Device_OnPacketArrival(packetBuffer.Take((int)bytesRead).ToArray());
-                    packetBuffer = new Byte[packetBuffer.Length];
+                    var packets = new Byte[(int)bytesRead];
+                    Array.Copy(packetBuffer, packets, (int)bytesRead);
+                    packetQueue.Add(packets);
                 }
             }
             catch (Exception ex)
             {
                 EZLogger.log("error", ex.Message);
             }
-            socket?.BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
-        }
-
-        void Xor(byte[] data, int seed, byte[] xorKey)
-        {
-            for (int i = 0; i < data.Length; i++) data[i] = (byte)(data[i] ^ xorKey[seed++ % xorKey.Length]);
+            packetBuffer = new Byte[packetBuffer.Length];
+            socket?.BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), ar);
         }
 
         UInt32 currentIpAddr = 0xdeadbeef;
         Byte[] fragmentedPacket = new Byte[0];
+
 
         void ProcessPacket(List<Byte> data)
         {
@@ -93,7 +117,7 @@ namespace Lost_Ark_Packet_Capture
 
                 if (packets[5] != 1 || 6 > packets.Length || packetSize < 7) return;
                 var payload = packets.Skip(6).Take(packetSize - 6).ToArray();
-                Xor(payload, (UInt16)opcode, Environment.XorTable);
+                Xor.Cipher(payload, (UInt16)opcode, Environment.XorTable);
                 if (packets[4] == 3) payload = Oodle.OodleDecompress(payload).Skip(16).ToArray();
 
                 if (Environment.relevantOps.Contains(opcode))
@@ -107,7 +131,8 @@ namespace Lost_Ark_Packet_Capture
                         UInt64 playerId = BitConverter.ToUInt64(payload, 12);
 
                         // new-projectile,playerId,projectileId
-                        EZLogger.log("data-v2", "new-projectile," + playerId + "," + projectileId);}
+                        EZLogger.log("data-v2", "new-projectile," + playerId + "," + projectileId);
+                    }
                     else if (opcode == OpCodes.PKTNewPC)
                     {
                         //EZLogger.log("debug", "PKTNewPC");
@@ -115,10 +140,6 @@ namespace Lost_Ark_Packet_Capture
 
                         var pc = new PKTNewPC(payload);
                         var pcClass = Npc.GetPcClass(pc.ClassId);
-                        Entity c = new Entity();
-                        c.Name = pc.Name;
-                        c.Id = pc.PlayerId;
-                        c.ClassName = pcClass;
 
                         // new-player,isYou,playerName,playerClass,playerId
                         EZLogger.log("data-v2", "new-player,0," + pc.Name + "," + pcClass + "," + pc.PlayerId);
@@ -129,13 +150,10 @@ namespace Lost_Ark_Packet_Capture
                         //EZLogger.log("debug", Convert.ToHexString(payload));
 
                         var pc = new PKTInitEnv(payload);
-                        Entity c = new Entity();
-                        c.Id = pc.PlayerId;
-                        c.Name = "You";
-                        
+
                         EZLogger.log("data-v2", "new-instance");
                         // new-player,isYou,playerName,playerClass,playerId
-                        EZLogger.log("data-v2", "new-player,1," + c.Name + ",UnknwonClass," + c.Id);
+                        EZLogger.log("data-v2", "new-player,1,You,UnknwonClass," + pc.PlayerId);
                     }
                     else if (opcode == OpCodes.PKTSkillDamageNotify)
                     {
@@ -152,7 +170,7 @@ namespace Lost_Ark_Packet_Capture
 
                             EZLogger.log("data-v2",
                                     "skill-damage-notify," + // flag
-                                    //DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + // date
+                                                             //DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + // date
                                     damage.PlayerId + "," + // damage playerId
                                     className + "," + // character class
                                     dmgEvent.TargetId + "," + // target name
@@ -162,6 +180,13 @@ namespace Lost_Ark_Packet_Capture
                                     (((dmgEvent.FlagsMaybe & 0x10) > 0) ? "1" : "0") + "," + // back attack flag
                                     (((dmgEvent.FlagsMaybe & 0x20) > 0) ? "1" : "0")); // front attack flag
                         }
+                    }
+                    else if (opcode == OpCodes.PKTSkillDamageAbnormalMoveNotify)
+                    {
+                        var damage = new PKTSkillDamageAbnormalMoveNotify(payload);
+                        //for (var i = 0; i < payload.Length - 4; i++)
+                        //    Console.WriteLine(i + " : " + BitConverter.ToUInt32(payload, i) + " : " + BitConverter.ToUInt32(payload, i).ToString("X"));
+                        // normal mobs when skills make them move. not needed for boss tracking, since guardians don't get moved by abilities. this will show more damage taken by players
                     }
                 }
 
@@ -178,12 +203,11 @@ namespace Lost_Ark_Packet_Capture
             {
                 var tcp = new PacketDotNet.TcpPacket(new PacketDotNet.Utils.ByteArraySegment(bytes.Skip(20).ToArray()));
                 if (tcp.SourcePort != 6040) return; // this filter should be moved up before parsing to TcpPacket for performance
-                
                 var srcAddr = BitConverter.ToUInt32(bytes, 12);
                 if (srcAddr != currentIpAddr)
                 {
                     // end session here
-                    if (tcp.PayloadData.Length > 4 && (OpCodes)BitConverter.ToUInt16(tcp.PayloadData, 2) == OpCodes.PKTAuthTokenResult && tcp.PayloadData[0] == 0x1e)
+                    if (currentIpAddr == 0xdeadbeef || tcp.PayloadData.Length > 4 && (OpCodes)BitConverter.ToUInt16(tcp.PayloadData, 2) == OpCodes.PKTAuthTokenResult && tcp.PayloadData[0] == 0x1e)
                     {
                         currentIpAddr = srcAddr;
                         tcpReconstruction = new TcpReconstruction(ProcessPacket);
