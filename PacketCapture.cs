@@ -121,6 +121,7 @@ namespace Lost_Ark_Packet_Capture
                 {
                     packets = packets.Skip(packets.Length).ToArray();
                     fragmentedPacket = new Byte[0];
+                    return;
                 }
 
                 var payload = packets.Skip(6).Take(packetSize - 6).ToArray();
