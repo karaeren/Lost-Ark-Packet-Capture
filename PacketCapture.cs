@@ -5,12 +5,13 @@ namespace Lost_Ark_Packet_Capture
 {
     public class PacketCapture
     {
-        Machina.TCPNetworkMonitor tcp;
         UInt32 currentIpAddr = 0xdeadbeef;
         Byte[] fragmentedPacket = new Byte[0];
 
         public void Start()
         {
+            EZLogger.log("message", "Starting packet capture service.");
+
             Oodle.OodleInit();
             EZLogger.log("debug", "Oodle init done!");
 

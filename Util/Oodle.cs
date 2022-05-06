@@ -12,29 +12,29 @@ namespace Lost_Ark_Packet_Capture
 
         public static Byte[] oodleState;
         public static Byte[] oodleSharedDict;
-
         public static void OodleInit()
         {
-            while (!File.Exists("oo2net_9_win64.dll"))
+            if (!File.Exists("oo2net_9_win64.dll"))
             {
-                if (File.Exists(@"C:\Program Files (x86)\Steam\steamapps\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll"))
+                var laLocation = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1599340")?.GetValue("InstallLocation");
+                if (laLocation != null)
                 {
-                    File.Copy(@"C:\Program Files (x86)\Steam\steamapps\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll", "oo2net_9_win64.dll");
-                    continue;
-                }
-
-                var installLocation = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1599340")?.GetValue("InstallLocation");
-                if (installLocation != null)
-                {
-                    var oodleDll = Path.Combine(installLocation.ToString(), "Binaries", "Win64", "oo2net_9_win64.dll");
+                    var oodleDll = Path.Combine(laLocation.ToString(), "Binaries", "Win64", "oo2net_9_win64.dll");
                     if (File.Exists(oodleDll))
                     {
                         File.Copy(oodleDll, "oo2net_9_win64.dll");
-                        continue;
                     }
                 }
+                else if (File.Exists(@"C:\Program Files (x86)\Steam\steamapps\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll"))
+                {
+                    File.Copy(@"C:\Program Files (x86)\Steam\steamapps\common\Lost Ark\Binaries\Win64\oo2net_9_win64.dll", "oo2net_9_win64.dll");
+                }
+            }
 
-                EZLogger.log("error", "Please copy oo2net_9_win64.dll from LostArk directory to current directory.");
+
+            if (!File.Exists("oo2net_9_win64.dll"))
+            {
+                Console.WriteLine("Please copy oo2net_9_win64.dll from Lost Ark directory to current directory.");
                 System.Environment.Exit(1);
             }
 
