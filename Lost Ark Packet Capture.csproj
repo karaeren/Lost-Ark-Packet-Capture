@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <StartupObject>Lost_Ark_Packet_Capture.Program</StartupObject>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,7 +24,10 @@
 
   <ItemGroup>
     <PackageReference Include="ElectronCgi.DotNet" Version="1.0.3" />
+    <PackageReference Include="K4os.Compression.LZ4" Version="1.2.16" />
+    <PackageReference Include="Machina" Version="2.3.0.7" />
     <PackageReference Include="SharpPcap" Version="6.2.0" />
+    <PackageReference Include="Snappy.NET" Version="1.1.1.8" />
   </ItemGroup>
 
   <ItemGroup>
