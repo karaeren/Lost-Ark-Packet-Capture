@@ -44,7 +44,11 @@ namespace Lost_Ark_Packet_Capture
             var compressorState = payload.Skip(0x20).Skip(0x800000).Take(compressorSize).ToArray();
             var stateSize = OodleNetwork1UDP_State_Size();
             oodleState = new Byte[stateSize];
-            if (!OodleNetwork1UDP_State_Uncompact(oodleState, compressorState)) throw new Exception("oodle init fail");
+            if (!OodleNetwork1UDP_State_Uncompact(oodleState, compressorState))
+            {
+                EZLogger.log("error", "oodle init failed");
+                return;
+            };
             oodleSharedDict = new Byte[OodleNetwork1_Shared_Size(0x13) * 2];
             OodleNetwork1_Shared_SetWindow(oodleSharedDict, 0x13, dict, 0x800000);
         }
@@ -61,7 +65,10 @@ namespace Lost_Ark_Packet_Capture
                 {
                     OodleInit();
                     if (!OodleNetwork1UDP_Decode(oodleState, oodleSharedDict, payload, payload.Length, tempPayload, oodleSize))
-                        throw new Exception("oodle decompress fail");
+                    {
+                        EZLogger.log("error", "oodle decompress failed");
+                        return null;
+                    };
                 }
             }
             catch
