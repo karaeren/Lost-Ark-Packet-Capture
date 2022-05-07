@@ -10,8 +10,9 @@ namespace Lost_Ark_Packet_Capture
         [DllImport("oo2net_9_win64")] static extern int OodleNetwork1UDP_State_Size();
         [DllImport("oo2net_9_win64")] static extern int OodleNetwork1_Shared_Size(int bits);
 
-        public static Byte[] oodleState;
-        public static Byte[] oodleSharedDict;
+        static Byte[] oodleState;
+        static Byte[] oodleSharedDict;
+        const string oodleDll = "oo2net_9_win64.dll";
         public static void OodleInit()
         {
             if (!File.Exists("oo2net_9_win64.dll"))
@@ -49,7 +50,7 @@ namespace Lost_Ark_Packet_Capture
                 EZLogger.log("error", "oodle init failed");
                 return;
             };
-            oodleSharedDict = new Byte[OodleNetwork1_Shared_Size(0x13) * 2];
+            oodleSharedDict = new Byte[OodleNetwork1_Shared_Size(0x13)];
             OodleNetwork1_Shared_SetWindow(oodleSharedDict, 0x13, dict, 0x800000);
         }
 
@@ -58,23 +59,18 @@ namespace Lost_Ark_Packet_Capture
             var oodleSize = BitConverter.ToInt32(decompressed, 0);
             var payload = decompressed.Skip(4).ToArray();
             var tempPayload = new Byte[oodleSize];
-
             try
             {
                 if (!OodleNetwork1UDP_Decode(oodleState, oodleSharedDict, payload, payload.Length, tempPayload, oodleSize))
                 {
-                    OodleInit();
-                    if (!OodleNetwork1UDP_Decode(oodleState, oodleSharedDict, payload, payload.Length, tempPayload, oodleSize))
-                    {
-                        EZLogger.log("error", "oodle decompress failed");
-                        return null;
-                    };
-                }
+                    EZLogger.log("error", "oodle decompress failed");
+                    return null;
+                };
             }
-            catch
+            catch (Exception e)
             {
-                OodleInit();
-                return OodleDecompress(decompressed);
+                EZLogger.log("message", "access excepted");
+                Console.WriteLine("access excepted");
             }
             return tempPayload;
         }

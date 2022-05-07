@@ -1,5 +1,6 @@
 ﻿using K4os.Compression.LZ4;
 using Snappy;
+using System.Runtime.InteropServices;
 
 namespace Lost_Ark_Packet_Capture
 {
@@ -15,9 +16,23 @@ namespace Lost_Ark_Packet_Capture
             Oodle.OodleInit();
             EZLogger.log("debug", "Oodle init done!");
 
+            var use_npcap = true;
+            // See if winpcap loads
+            try
+            {
+                pcap_strerror(1);
+            }
+            catch (Exception ex)
+            {
+                EZLogger.log("message", ex.ToString());
+                use_npcap = false; // Fall back to raw sockets
+            }
+
+            Machina.Infrastructure.NetworkMonitorType monitorType;
             var tcp = new Machina.TCPNetworkMonitor();
-            tcp.Config.WindowName = "LOST ARK (64-bit, DX11) v.2.2.3.1";
-            tcp.Config.MonitorType = Machina.Infrastructure.NetworkMonitorType.RawSocket;
+            tcp.Config.WindowClass = "EFLaunchUnrealUWindowsClient";
+            if (use_npcap) monitorType = tcp.Config.MonitorType = Machina.Infrastructure.NetworkMonitorType.WinPCap;
+            else monitorType = tcp.Config.MonitorType = Machina.Infrastructure.NetworkMonitorType.RawSocket;
             tcp.DataReceivedEventHandler += (Machina.Infrastructure.TCPConnection connection, byte[] data) => Device_OnPacketArrival(connection, data);
             tcp.Start();
             EZLogger.log("debug", "All connections started");
@@ -26,6 +41,10 @@ namespace Lost_Ark_Packet_Capture
 
             ElectronConnection.connection.Listen();
         }
+
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments
+        [DllImport("wpcap.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)] static extern IntPtr pcap_strerror(int err);
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
 
         void ProcessPacket(List<Byte> data)
         {
@@ -92,7 +111,7 @@ namespace Lost_Ark_Packet_Capture
                     UInt64 playerId = BitConverter.ToUInt64(payload, 12);
 
                     // new-projectile,playerId,projectileId
-                    EZLogger.log("data-v2", "new-projectile," + playerId + "," + projectileId);
+                    EZLogger.log("data", "new-projectile," + playerId + "," + projectileId);
                 }
                 else if (opcode == OpCodes.PKTNewPC)
                 {
@@ -103,7 +122,7 @@ namespace Lost_Ark_Packet_Capture
                     var pcClass = Npc.GetPcClass(pc.ClassId);
 
                     // new-player,isYou,playerName,playerClass,playerId
-                    EZLogger.log("data-v2", "new-player,0," + pc.Name + "," + pcClass + "," + pc.PlayerId);
+                    EZLogger.log("data", "new-player,0," + pc.Name + "," + pcClass + "," + pc.PlayerId);
                 }
                 else if (opcode == OpCodes.PKTInitEnv)
                 {
@@ -112,13 +131,13 @@ namespace Lost_Ark_Packet_Capture
 
                     var pc = new PKTInitEnv(payload);
 
-                    EZLogger.log("data-v2", "new-instance");
+                    EZLogger.log("data", "new-instance");
                     // new-player,isYou,playerName,playerClass,playerId
-                    //EZLogger.log("data-v2", "new-player,1,You,UnknwonClass," + pc.PlayerId);
-                    foreach (var pid in pc.PlayerIds)
-                    {
-                        EZLogger.log("data-v2", "new-player,1,You,UnknwonClass," + pid);
-                    }
+                    EZLogger.log("data", "new-player,1,You,UnknwonClass," + pc.PlayerId);
+                    //foreach (var pid in pc.PlayerIds)
+                    //{
+                    //    EZLogger.log("data", "new-player,1,You,UnknwonClass," + pid);
+                    //}
                 }
                 else if (opcode == OpCodes.PKTSkillDamageNotify)
                 {
@@ -133,7 +152,7 @@ namespace Lost_Ark_Packet_Capture
                         var skillName = Skill.GetSkillName(damage.SkillId, damage.SkillIdWithState);
                         // if a projectile, get the owner's ID
 
-                        EZLogger.log("data-v2",
+                        EZLogger.log("data",
                                 "skill-damage-notify," + // flag
                                                          //DateTime.Now.ToString("yy:MM:dd:HH:mm:ss.f") + "," + // date
                                 damage.PlayerId + "," + // damage playerId

@@ -16,6 +16,7 @@
             public UInt16 FlagsMaybe; // 0x20 front, 0x10 back, 0x8 dot crit, 0x4 dot, 0x1 crit
             public UInt32 Unk3; // 0a 00 00 01
         }
+        public PKTSkillDamageNotify() { }
         public PKTSkillDamageNotify(Byte[] Bytes)
         {
             var bitReader = new BitReader(Bytes);

@@ -4,7 +4,7 @@
     {
         public static void log(String requestType, String message)
         {
-            if (requestType == "debug" && !Environment.debugMode) return;
+            if (requestType == "debug" && !Environment.debugMode && !Environment.includeDebugMessagesInProd) return;
 
             if (Environment.debugMode)
                 Console.WriteLine(requestType + ": " + message);
